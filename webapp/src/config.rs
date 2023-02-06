@@ -1,8 +1,10 @@
 use core::fmt;
-
+use actix_web::web;
 use serde::Deserialize;
 use config::ConfigError;
 use sqlx::{Postgres, Pool};
+
+use crate::services;
 
 #[derive(Deserialize, Debug)]
 pub(crate) struct Config{
@@ -36,6 +38,15 @@ impl Config {
     }
 }
 
-pub(crate) struct AppData{
+pub struct AppData{
     pub pool: Pool<Postgres>
+}
+
+pub fn app_config(cfg: &mut web::ServiceConfig){
+    cfg
+    .service(services::get_ready)
+    .service(
+        web::scope("/admin")
+        .service(services::get_ready)
+    );
 }

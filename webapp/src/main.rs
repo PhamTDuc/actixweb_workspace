@@ -1,7 +1,7 @@
 mod config;
 mod services;
 
-use actix_web::{HttpServer, App, web::{Data, service}};
+use actix_web::{HttpServer, App, web::{Data}};
 use log::info;
 use sqlx::postgres::PgPoolOptions;
 
@@ -31,7 +31,7 @@ async fn main()->std::io::Result<()>{
     HttpServer::new(move||{
         App::new()
         .app_data(app_data.clone())
-        .service(services::get_ready)
+        .configure(config::app_config)
     })
     .workers(config.n_workers)
     .bind(("127.0.0.1", 8080))?

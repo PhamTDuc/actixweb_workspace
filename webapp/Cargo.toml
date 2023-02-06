@@ -14,7 +14,7 @@ dotenvy = "^0.15"
 config ="^0.13.3"
 utoipa = { version = "2", features = ["actix_extras"] }
 utoipa-swagger-ui = { version = "2", features = ["actix-web"] }
-sqlx = { version = "^0.6.2", features = [ "runtime-actix-native-tls" , "postgres" ] }
+sqlx = { version = "^0.6.2", features = [ "runtime-actix-native-tls" , "postgres", "macros" ] }
 clap = {version="^4.1.1", features=["derive"]}
 
 authentication={path="../authentication"}
