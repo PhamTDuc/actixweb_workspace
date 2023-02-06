@@ -5,9 +5,8 @@ use argonautica::{ Hasher, Verifier};
 use chrono::{Utc, Duration};
 use jsonwebtoken::{EncodingKey, Header, DecodingKey, Validation};
 use serde::{Serialize, Deserialize};
-use sqlx::FromRow;
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
     pub username: String,
     pub permissions: Vec<String>,
@@ -37,7 +36,7 @@ impl Claims {
             .map_err(|e| ErrorUnauthorized(e.to_string()))
     }
 
-    pub async fn validator(jwt_secret:&str, req: ServiceRequest, credentials: BearerAuth) -> Result<ServiceRequest, (Error, ServiceRequest)> {
+    pub async fn validator(jwt_secret: &str, req: ServiceRequest, credentials: BearerAuth) -> Result<ServiceRequest, (Error, ServiceRequest)> {
         // We just get permissions from JWT
         let result = Claims::decode_jwt(jwt_secret, credentials.token());
         match result {

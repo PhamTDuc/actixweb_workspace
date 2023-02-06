@@ -1,0 +1,20 @@
+[package]
+name = "webapp"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web ="^4"
+serde ={version="^1", features = ["derive"]}
+log ="^0.4.17"
+env_logger ="^0.10"
+dotenvy = "^0.15"
+config ="^0.13.3"
+utoipa = { version = "2", features = ["actix_extras"] }
+utoipa-swagger-ui = { version = "2", features = ["actix-web"] }
+sqlx = { version = "^0.6.2", features = [ "runtime-actix-native-tls" , "postgres" ] }
+clap = {version="^4.1.1", features=["derive"]}
+
+authentication={path="../authentication"}
