@@ -7,7 +7,7 @@ use sqlx::{Postgres, Pool};
 use crate::services;
 
 #[derive(Deserialize, Debug)]
-pub(crate) struct Config{
+pub struct Config{
     pub server: ServerConfig,
     pub database_url:String,
     pub max_db_connection:u32,
@@ -41,6 +41,8 @@ impl Config {
 pub struct AppData{
     pub pool: Pool<Postgres>
 }
+
+// * Each ServerConfig can have it own data, route and services
 
 pub fn app_config(cfg: &mut web::ServiceConfig){
     cfg
