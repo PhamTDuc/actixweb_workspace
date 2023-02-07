@@ -9,6 +9,8 @@ struct Args{
 
 fn main(){
     let args = Args::parse();
+    dotenvy::dotenv().ok();
+
     let config =  webapp::config::Config::from_env().unwrap();
     println!("Command: {:?}", args);
 }
