@@ -12,5 +12,6 @@ fn main(){
     dotenvy::dotenv().ok();
 
     let config =  webapp::config::Config::from_env().unwrap();
-    println!("Command: {:?}", args);
+    println!("Command: {:#?}", args);
+    println!("Config: {:#?}", config);
 }

@@ -31,7 +31,7 @@ async fn main()->std::io::Result<()>{
         .configure(webapp::config::app_config)
     })
     .workers(config.n_workers)
-    .bind(("127.0.0.1", 8080))?
+    .bind(config.server)?
     .run()
     .await
 }
