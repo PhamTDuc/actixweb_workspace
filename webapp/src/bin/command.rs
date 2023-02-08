@@ -1,17 +1,52 @@
+use std::io::Error;
+use std::io::ErrorKind;
+
 use clap::Parser;
+use sqlx::PgConnection;
+use sqlx::Connection;
+use sqlx::error;
+use authentication::claims::Claims;
 
 
 #[derive(Debug, Parser)]
 #[command(author, version, about, long_about=None)]
 struct Args{
-    command: Option<String>,
+    command: String,
+    args: Option<Vec<String>>
 }
 
-fn main(){
+
+async fn create_super_user(user_name: &str, password: &str)->Result<bool, error::Error> {
+    let db_url = dotenvy::var("DATABASE_URL").unwrap();
+    let mut conn = PgConnection::connect(&db_url).await?;
+
+    let encoded_password = Claims::hashing_pasword(&dotenvy::var("SECRET_KEY").unwrap(), password).unwrap();
+
+    sqlx::query("INSERT INTO authentication.user_info(user_name, password, role, status) VALUES ($1, $2, 'admin', 'active')")
+    .bind(user_name)
+    .bind(&encoded_password)
+    .execute(&mut conn).await.map_err(|e| {println!("{}", e.to_string());e})?;
+    println!("Create super user successfully");
+    return Ok(true);
+}
+
+#[actix_web::main]
+async fn main()->std::io::Result<()>{
     let args = Args::parse();
     dotenvy::dotenv().ok();
 
     let config =  webapp::config::Config::from_env().unwrap();
     println!("Command: {:#?}", args);
     println!("Config: {:#?}", config);
+
+    match &args.command[..]{
+        "create_super"=> {
+            assert!(args.args.is_some() && args.args.as_ref().unwrap().len()==2, "Arguments missing or invalid");
+            let args = args.args.as_ref().unwrap();
+            let _ = create_super_user(&args[0], &args[1]).await.map_err(|_| Error::new(ErrorKind::Interrupted, "Failed to create super user"))?;
+            return Ok(());
+        }
+        _=> println!("Invalid command"),
+    }
+    Ok(())
 }
