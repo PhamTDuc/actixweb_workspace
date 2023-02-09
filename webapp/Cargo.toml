@@ -16,5 +16,8 @@ utoipa = { version = "2", features = ["actix_extras"] }
 utoipa-swagger-ui = { version = "2", features = ["actix-web"] }
 sqlx = { version = "^0.6.2", features = [ "runtime-actix-native-tls" , "postgres", "macros" ] }
 clap = {version="^4.1.1", features=["derive"]}
+actix-web-httpauth = "^0.8.0"
+actix-web-grants = "^3.0.1"
+actix-session = {version="^0.7.2", features= ["cookie-session"]}
 
 authentication={path="../authentication"}

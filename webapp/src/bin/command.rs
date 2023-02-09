@@ -2,6 +2,7 @@ use std::io::Error;
 use std::io::ErrorKind;
 
 use clap::Parser;
+use log::info;
 use sqlx::PgConnection;
 use sqlx::Connection;
 use sqlx::error;
@@ -20,13 +21,13 @@ async fn create_super_user(user_name: &str, password: &str)->Result<bool, error:
     let db_url = dotenvy::var("DATABASE_URL").unwrap();
     let mut conn = PgConnection::connect(&db_url).await?;
 
-    let encoded_password = Claims::hashing_pasword(&dotenvy::var("SECRET_KEY").unwrap(), password).unwrap();
+    let hashed_password = Claims::hashing_pasword(&dotenvy::var("SECRET_KEY").unwrap(), password).unwrap();
 
     sqlx::query("INSERT INTO authentication.user_info(user_name, password, role, status) VALUES ($1, $2, 'admin', 'active')")
     .bind(user_name)
-    .bind(&encoded_password)
+    .bind(&hashed_password)
     .execute(&mut conn).await.map_err(|e| {println!("{}", e.to_string());e})?;
-    println!("Create super user successfully");
+    info!("Create super user successfully");
     return Ok(true);
 }
 
@@ -34,10 +35,11 @@ async fn create_super_user(user_name: &str, password: &str)->Result<bool, error:
 async fn main()->std::io::Result<()>{
     let args = Args::parse();
     dotenvy::dotenv().ok();
-
+    env_logger::init();
+    
     let config =  webapp::config::Config::from_env().unwrap();
-    println!("Command: {:#?}", args);
-    println!("Config: {:#?}", config);
+    info!("Command: {:?}", args);
+    info!("Config: {:?}", config);
 
     match &args.command[..]{
         "create_super"=> {
@@ -46,7 +48,7 @@ async fn main()->std::io::Result<()>{
             let _ = create_super_user(&args[0], &args[1]).await.map_err(|_| Error::new(ErrorKind::Interrupted, "Failed to create super user"))?;
             return Ok(());
         }
-        _=> println!("Invalid command"),
+        _=> info!("Invalid command"),
     }
     Ok(())
 }
