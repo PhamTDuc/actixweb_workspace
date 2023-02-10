@@ -19,5 +19,6 @@ clap = {version="^4.1.1", features=["derive"]}
 actix-web-httpauth = "^0.8.0"
 actix-web-grants = "^3.0.1"
 actix-session = {version="^0.7.2", features= ["cookie-session"]}
+actix-cors = "^0.6.4"
 
 authentication={path="../authentication"}

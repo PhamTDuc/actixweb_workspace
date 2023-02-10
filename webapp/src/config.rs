@@ -75,7 +75,6 @@ pub async fn validator(req: ServiceRequest, cred: BearerAuth)-> Result<ServiceRe
 
 pub fn app_config(cfg: &mut web::ServiceConfig){
     let auth =  HttpAuthentication::bearer(validator);
-
     cfg
     .service(services::apis::get_ready)
     .service(services::apis::login)
