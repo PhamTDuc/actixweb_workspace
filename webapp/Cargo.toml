@@ -8,13 +8,14 @@ edition = "2021"
 [dependencies]
 actix-web ="^4"
 serde ={version="^1", features = ["derive"]}
+serde_json = "^1.0"
 log ="^0.4.17"
 env_logger ="^0.10"
 dotenvy = "^0.15"
 config ="^0.13.3"
 utoipa = { version = "2", features = ["actix_extras"] }
 utoipa-swagger-ui = { version = "2", features = ["actix-web"] }
-sqlx = { version = "^0.6.2", features = [ "runtime-actix-native-tls" , "postgres", "macros" ] }
+sqlx = { version = "0.6", features = [ "runtime-actix-native-tls" , "postgres", "macros" ] }
 clap = {version="^4.1.1", features=["derive"]}
 actix-web-httpauth = "^0.8.0"
 actix-web-grants = "^3.0.1"
