@@ -1,5 +1,5 @@
 use serde::{Serialize};
-use sqlx::{Type, postgres::{PgHasArrayType, PgTypeInfo}};
+use sqlx::{Type, postgres::{PgHasArrayType, PgTypeInfo, types::Oid}};
 
 #[derive(Serialize)]
 pub struct Status{
@@ -18,7 +18,7 @@ pub struct UserInfo{
 #[derive(sqlx::FromRow, Serialize)]
 pub struct PermissionRole{
     pub role:Role,
-    pub permission: Vec<Permission>
+    pub permission: Option<Vec<Permission>>
 }
  
 #[derive(sqlx::Type, Serialize, Clone)]
@@ -31,24 +31,24 @@ pub enum Role{
 
 #[derive(sqlx::Type, Serialize, Clone)]
 #[sqlx(type_name="permission")]
-#[sqlx(rename_all="lowercase")]
+#[sqlx(rename_all="snake_case")]
 pub enum Permission{
 
-    Grant_Permission,
-    Can_View
+    GrantPermission,
+    CanView
 }
 
 impl From<Permission> for String{
     fn from(value: Permission) -> Self {
         match value {
-            Permission::Can_View=> "can_view".to_owned(),
-            Permission::Grant_Permission => "grant_permission".to_owned(),
+            Permission::CanView=> "can_view".to_owned(),
+            Permission::GrantPermission => "grant_permission".to_owned(),
         }
     }
 }
 
-impl PgHasArrayType for Permission{
-    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
-        PgTypeInfo::with_name("permission")
-    }
-}
+// impl PgHasArrayType for Permission{
+//     fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+//         PgTypeInfo::with_name("_permission")
+//     }
+// }
