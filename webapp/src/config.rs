@@ -10,7 +10,7 @@ use actix_web_httpauth::{extractors::bearer::BearerAuth, middleware::HttpAuthent
 
 use crate::services;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Config{
     pub server: ServerConfig,
     pub database_url:String,
@@ -22,7 +22,7 @@ pub struct Config{
 }
 
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct ServerConfig{
     pub host:String,
     pub port: u16
@@ -59,7 +59,8 @@ impl Config {
 }
 
 pub struct AppData{
-    pub pool: Pool<Postgres>
+    pub pool: Pool<Postgres>,
+    pub config: Config
 }
 
 pub async fn validator(req: ServiceRequest, cred: BearerAuth)-> Result<ServiceRequest, (Error, ServiceRequest)> {

@@ -22,7 +22,8 @@ async fn main()->std::io::Result<()>{
 
     let app_data = Data::new({
         webapp::config::AppData{
-            pool
+            pool,
+            config: config.clone()
         }
     });
 

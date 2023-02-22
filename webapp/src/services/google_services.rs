@@ -16,7 +16,7 @@ impl Default for Claims{
     fn default() -> Self {
         Self { 
             iss: "send-email-service@actixweb-workspace.iam.gserviceaccount.com".to_string(), 
-            scope: "https://www.googleapis.com/auth/gmail.send".to_string(),
+            scope: "https://mail.google.com/ https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.compose".to_string(),
             aud: "https://oauth2.googleapis.com/token".to_string(), 
             exp: (Utc::now() + Duration::hours(1)).timestamp(),
             iat: Utc::now().timestamp(), }
