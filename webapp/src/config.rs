@@ -78,6 +78,7 @@ pub fn app_config(cfg: &mut web::ServiceConfig){
     cfg
     .service(services::apis::get_ready)
     .service(services::apis::login)
+    .service(services::apis::get_google_access_token)
     .service(
         web::scope("/api")
         .wrap(auth)

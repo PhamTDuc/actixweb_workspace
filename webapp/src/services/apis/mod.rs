@@ -2,8 +2,11 @@ pub mod admin;
 use actix_session::Session;
 use actix_web::{Responder, get, post, web::{self, Data}, Error, error, http::StatusCode, HttpRequest, HttpResponse};
 use authentication::claims::Claims;
+use log::info;
+use reqwest::Client;
 use serde::Deserialize;
-use crate::{services::models::{self, response::{PermissionRole}}, config::AppData};
+use utoipa::openapi::security::Http;
+use crate::{services::{models::{self, response::{PermissionRole}}, google_services}, config::AppData};
 use actix_web_grants::proc_macro::{ has_permissions, has_any_permission};
 use crate::services::models::response::{Role, Permission};
 
@@ -56,4 +59,34 @@ pub async fn login(req: HttpRequest, info: web::Json<User>)->impl Responder{
         } 
     }
     return HttpResponse::Forbidden().into();
+}
+
+// #[post("/register")]
+// pub async fn register(req: HttpRequest, info: web::Json<User>)->impl Responder{
+//     let app_data = req.app_data::<Data<AppData>>().unwrap();
+
+
+// }
+
+#[post("/get_google_access_token")]
+pub async fn get_google_access_token()->impl Responder{
+    let client =  Client::new();
+    let jwt_token = google_services::Claims::create_jwt().expect("Failed to create jwt");
+    let params = [
+        ("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"),
+        ("assertion", &jwt_token)];
+    let res = client.post("https://oauth2.googleapis.com/token")
+        // .content_type("application/x-www-form-urlencoded")
+        .form(&params)
+        .send().await;
+    
+    if let Ok(mut result)=res{
+        let body = result.text().await.expect("Failed to get response");
+        return HttpResponse::Ok().body(body);
+    }
+    else{
+        info!("{:#?}", res);
+    }
+
+    return HttpResponse::InternalServerError().into();
 }

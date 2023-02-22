@@ -2,6 +2,7 @@ use actix_cors::Cors;
 use actix_web::{HttpServer, App, web::{Data}, cookie::Key};
 use actix_session::{SessionMiddleware, storage::CookieSessionStore};
 use log::info;
+use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use sqlx::postgres::PgPoolOptions;
 
 
@@ -24,6 +25,10 @@ async fn main()->std::io::Result<()>{
             pool
         }
     });
+
+    let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+    builder.set_private_key_file("key.pem", SslFiletype::PEM).unwrap();
+    builder.set_certificate_chain_file("cert.pem").unwrap();
     
 
     info!("Starting server at {:}", config.server);
@@ -49,7 +54,7 @@ async fn main()->std::io::Result<()>{
         .configure(webapp::config::app_config)
     })
     .workers(config.n_workers)
-    .bind(config.server)?
+    .bind_openssl(config.server, builder)?
     .run()
     .await
 }
