@@ -1,6 +1,7 @@
 use actix_cors::Cors;
 use actix_web::{HttpServer, App, web::{Data}, cookie::Key};
 use actix_session::{SessionMiddleware, storage::CookieSessionStore};
+use authentication::claims::AuthProvider;
 use log::info;
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use sqlx::postgres::PgPoolOptions;
@@ -20,10 +21,13 @@ async fn main()->std::io::Result<()>{
         .await
         .expect("Database connection failed");
 
+    let auth_provider = AuthProvider::new(&config.jwt_secret);
+
     let app_data = Data::new({
         webapp::config::AppData{
             pool,
-            config: config.clone()
+            config: config.clone(),
+            auth_provider
         }
     });
 

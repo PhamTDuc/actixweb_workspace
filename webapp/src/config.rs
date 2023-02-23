@@ -1,7 +1,8 @@
 use core::fmt;
 use std::{net::{ToSocketAddrs, SocketAddr, IpAddr, Ipv4Addr}, str::FromStr, vec};
-use actix_web::{web,error, dev::ServiceRequest, Error, http::StatusCode};
-use authentication::claims::Claims;
+use actix_web::{web::{self, Data},error::{self, ErrorUnauthorized}, dev::ServiceRequest, Error, http::StatusCode};
+use actix_web_grants::permissions::AttachPermissions;
+use authentication::claims::{Claims, AuthProvider};
 use serde::Deserialize;
 use config::ConfigError;
 use sqlx::{Postgres, Pool};
@@ -60,15 +61,25 @@ impl Config {
 
 pub struct AppData{
     pub pool: Pool<Postgres>,
-    pub config: Config
+    pub config: Config,
+    pub auth_provider:AuthProvider
 }
 
 pub async fn validator(req: ServiceRequest, cred: BearerAuth)-> Result<ServiceRequest, (Error, ServiceRequest)> {
-    let jwt_secret = dotenvy::var("JWT_SECRET");
-    match jwt_secret{
-        Ok(jwt_secret) => return Claims::validator(&jwt_secret, req, cred).await,
-        Err(e) => return Err((error::InternalError::new(e, StatusCode::INTERNAL_SERVER_ERROR).into(), req)),
-    }
+    let auth_provider = &req.request().app_data::<Data<AppData>>().unwrap().auth_provider;
+    let result = jsonwebtoken::decode::<Claims>(&cred.token(), &auth_provider.decoding_key, &auth_provider.validation)
+    .map(|data| data.claims)
+    .map_err(|e| ErrorUnauthorized(e.to_string()));
+
+    match result {
+            Ok(claims) => {
+                req.attach(claims.permissions);
+                Ok(req)
+            }
+            // required by `actix-web-httpauth` validator signature
+            Err(e) => Err((e, req))
+        }
+
 }
 
 
