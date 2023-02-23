@@ -1,14 +1,15 @@
 pub mod admin;
+
 use actix_session::Session;
-use actix_web::{Responder, get, post, web::{self, Data}, Error, error, http::StatusCode, HttpRequest, HttpResponse};
+use actix_web::{Responder, get, post, web::{self, Data, Redirect, redirect}, HttpRequest, HttpResponse};
 use authentication::claims::Claims;
-use log::{info, debug};
+use log::{info};
 use reqwest::Client;
 use serde::Deserialize;
-use utoipa::openapi::security::Http;
-use crate::{services::{models::{self, response::{PermissionRole}, request::UserRegister}, google_services}, config::AppData};
-use actix_web_grants::proc_macro::{ has_permissions, has_any_permission};
-use crate::services::models::response::{Role, Permission};
+use crate::{services::{models::{self, response::{PermissionRole, UserInfo, Response}, request::UserRegister}, google_services}, config::AppData};
+use actix_web_grants::proc_macro::{ has_permissions};
+use crate::services::models::response::{Role,Status, Permission};
+use base64::prelude::{Engine as _, BASE64_URL_SAFE_NO_PAD};
 
 #[derive(Deserialize)]
 pub struct User {
@@ -18,19 +19,13 @@ pub struct User {
 #[get("/")]
 pub async fn get_ready(session: Session)->impl Responder{
     session.insert("counter", 1000).unwrap();
-    actix_web::HttpResponse::Ok()
-    .json(models::response::Status{
-        status:"Ready".to_owned()
-    })
+    return HttpResponse::Ok().json(Response::<String>::default())
 }
 
 #[get("/")]
 #[has_permissions("Admin")]
 pub async fn get_ready_role()->impl Responder{
-    actix_web::HttpResponse::Ok()
-    .json(models::response::Status{
-        status:"Ready".to_owned()
-    })
+    return HttpResponse::Ok().json(Response::<String>::default())
 }
 
 
@@ -48,35 +43,57 @@ pub async fn login(req: HttpRequest, info: web::Json<User>)->impl Responder{
         if let Some(permission) = permission_role.permission {
             let user_info = info.into_inner();
             let claims = Claims::new(user_info.username, permission.into_iter().map(|e| e.into()).collect(), 1); 
-            let jwt_secret = dotenvy::var("JWT_SECRET");
-            if let Ok(jwt_secret) = &jwt_secret{
-                let jwt =  Claims::create_jwt(jwt_secret, claims);
-                if let Ok(jwt) = &jwt{
-                    return HttpResponse::Ok().body(jwt.to_string());
-                }
-            }
-            
+            let jwt =  Claims::create_jwt(&app_data.config.jwt_secret, claims).expect("Failed to create JWT");
+            return HttpResponse::Ok().json(Response::<String>::new(true, Some(jwt), None));
         } 
     }
-    return HttpResponse::Forbidden().into();
+    return HttpResponse::Forbidden().json(Response::<String>::new(false, None, Some("Login failed".to_string()))).into();
 }
 
+// TODO: Check user_name and email already exists 
 #[post("/register")]
 pub async fn register(req: HttpRequest, info: web::Json<UserRegister>)->impl Responder{
     let app_data = req.app_data::<Data<AppData>>().unwrap();
     let user_register = info.into_inner();
     let hashed_password =  Claims::hashing_pasword(&app_data.config.secret_key, &user_register.password).expect("Failed to hashing user password");
-    let query =  sqlx::query!(r#"
+    let query =  sqlx::query_as!(UserInfo, r#"
         INSERT INTO authentication.user_info (user_name, email, password, role, status)
-        VALUES ($1, $2, $3, 'user', 'deactivate')"#, &user_register.user_name, &user_register.email, &user_register.password)
-    .execute(&app_data.pool).await;
+        VALUES ($1, $2, $3, 'user', 'deactivate') RETURNING id, user_name, email, password, role AS "role: Role", status AS "status: Status""#, &user_register.user_name, &user_register.email, &hashed_password)
+    .fetch_one(&app_data.pool).await;
 
-    if let Err(err) = query{
-        debug!("{}", err.to_string());
-        return HttpResponse::Ok().body(err.to_string());
+    if let Ok(user_info) = query{
+        let mut token =  Claims::create_jwt(&app_data.config.jwt_secret, Claims::new(user_register.user_name.clone(), vec![], 60)).expect("Token for email verification");
+        let uuid = BASE64_URL_SAFE_NO_PAD.encode(user_info.id.to_string());
+        token = BASE64_URL_SAFE_NO_PAD.encode(token);
+        let activate_url = format!("/activate/{}/{}", uuid, token); // TODO: Send this redirect Link via Email instead of redirect
+        info!("Activate Link URL: {}", activate_url);
+        return  HttpResponse::Ok().json(Response::<String>::new(true, Some("Register success, please check your email for confirmation".to_string()), None))
     }
 
-    return HttpResponse::Ok().body("Register successs");
+    return HttpResponse::Ok().json(Response::<String>::new(false, None, Some("Register failed, please try again".to_string())));
+}
+
+#[get("/activate/{uuid}/{token}")]
+pub async fn activate(req: HttpRequest, path: web::Path<(String, String)>)->impl Responder{
+    let (uuid, token) = path.into_inner();
+    let app_data = req.app_data::<Data<AppData>>().unwrap();
+    let jwt = String::from_utf8(BASE64_URL_SAFE_NO_PAD.decode(token).expect("Failed to decode JWT")).expect("Failed to decode JWT to UTF-8");
+    let claims = Claims::decode_jwt(&app_data.config.jwt_secret, &jwt);
+    if let Ok(..) = claims {
+        let id =  uuid.parse::<i64>();
+        if let Ok(id) = id {
+            let query = sqlx::query!(
+                r#"UPDATE authentication.user_info
+                SET status='active'
+                WHERE id=$1"# ,id)
+                .execute(&app_data.pool).await;
+            if let Ok(..)= query {
+                return HttpResponse::Ok().json(Response::<String>::new(true, Some("Validate New Register success, please login to continue".to_string()), None));
+            }
+        }
+    }
+
+    return HttpResponse::ExpectationFailed().json(Response::<String>::new(false, None, Some("Failed to validate new registered user".to_string())))
 }
 
 #[post("/get_google_access_token")]

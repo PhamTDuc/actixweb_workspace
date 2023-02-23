@@ -14,11 +14,11 @@ pub struct Claims {
 }
 
 impl Claims {
-    pub fn new(username: String, permissions: Vec<String>, expiration_hour : i64) -> Self {
+    pub fn new(username: String, permissions: Vec<String>, expiration_sec : i64) -> Self {
         Self {
             username,
             permissions,
-            exp: (Utc::now() + Duration::hours(expiration_hour)).timestamp(),
+            exp: (Utc::now() + Duration::seconds(expiration_sec)).timestamp(),
         }
     }
 

@@ -1,18 +1,14 @@
 use serde::{Serialize};
 use sqlx::{Type, postgres::{PgHasArrayType, PgTypeInfo, types::Oid}};
 
-#[derive(Serialize)]
-pub struct Status{
-    pub status: String
-}
-
 #[derive(sqlx::FromRow)]
 pub struct UserInfo{
+    pub id: i64,
     pub user_name:  String,
-    pub email: String,
-    pub password: String,
-    pub role: String,
-    pub status: String
+    pub email: Option<String>,
+    pub password: Option<String>,
+    pub role: Option<Role>,
+    pub status: Option<Status>
 }
 
 #[derive(sqlx::FromRow, Serialize)]
@@ -28,6 +24,16 @@ pub enum Role{
     Admin,
     User
 }
+
+#[derive(sqlx::Type, Serialize, Clone)]
+#[sqlx(type_name="status")]
+#[sqlx(rename_all="lowercase")]
+pub enum Status{
+    Active,
+    Deactivate,
+    Blocked
+}
+
 
 #[derive(sqlx::Type, Serialize, Clone)]
 #[sqlx(type_name="permission")]
@@ -52,3 +58,23 @@ impl From<Permission> for String{
 //         PgTypeInfo::with_name("_permission")
 //     }
 // }
+
+#[derive(Serialize)]
+pub struct Response<T> where T:Serialize{
+    pub success: bool,
+    pub data: Option<T>,
+    pub message: Option<String>
+}
+
+impl Response<String>{
+    pub fn new(success: bool, data: Option<String>, message: Option<String>)->Self{
+        Self{success, data , message}
+    }
+}
+
+impl Default for Response<String>{
+    fn default() -> Self {
+        Self { success: true, data: Some("Success".to_string()), message: None }
+    }
+
+}
