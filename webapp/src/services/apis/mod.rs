@@ -2,11 +2,11 @@ pub mod admin;
 use actix_session::Session;
 use actix_web::{Responder, get, post, web::{self, Data}, Error, error, http::StatusCode, HttpRequest, HttpResponse};
 use authentication::claims::Claims;
-use log::info;
+use log::{info, debug};
 use reqwest::Client;
 use serde::Deserialize;
 use utoipa::openapi::security::Http;
-use crate::{services::{models::{self, response::{PermissionRole}}, google_services}, config::AppData};
+use crate::{services::{models::{self, response::{PermissionRole}, request::UserRegister}, google_services}, config::AppData};
 use actix_web_grants::proc_macro::{ has_permissions, has_any_permission};
 use crate::services::models::response::{Role, Permission};
 
@@ -61,12 +61,23 @@ pub async fn login(req: HttpRequest, info: web::Json<User>)->impl Responder{
     return HttpResponse::Forbidden().into();
 }
 
-// #[post("/register")]
-// pub async fn register(req: HttpRequest, info: web::Json<User>)->impl Responder{
-//     let app_data = req.app_data::<Data<AppData>>().unwrap();
+#[post("/register")]
+pub async fn register(req: HttpRequest, info: web::Json<UserRegister>)->impl Responder{
+    let app_data = req.app_data::<Data<AppData>>().unwrap();
+    let user_register = info.into_inner();
+    let hashed_password =  Claims::hashing_pasword(&app_data.config.secret_key, &user_register.password).expect("Failed to hashing user password");
+    let query =  sqlx::query!(r#"
+        INSERT INTO authentication.user_info (user_name, email, password, role, status)
+        VALUES ($1, $2, $3, 'user', 'deactivate')"#, &user_register.user_name, &user_register.email, &user_register.password)
+    .execute(&app_data.pool).await;
 
+    if let Err(err) = query{
+        debug!("{}", err.to_string());
+        return HttpResponse::Ok().body(err.to_string());
+    }
 
-// }
+    return HttpResponse::Ok().body("Register successs");
+}
 
 #[post("/get_google_access_token")]
 pub async fn get_google_access_token()->impl Responder{
@@ -80,7 +91,7 @@ pub async fn get_google_access_token()->impl Responder{
         .form(&params)
         .send().await;
     
-    if let Ok(mut result)=res{
+    if let Ok(result)=res{
         let body = result.text().await.expect("Failed to get response");
         return HttpResponse::Ok().body(body);
     }

@@ -78,6 +78,7 @@ pub fn app_config(cfg: &mut web::ServiceConfig){
     let auth =  HttpAuthentication::bearer(validator);
     cfg
     .service(services::apis::get_ready)
+    .service(services::apis::register)
     .service(services::apis::login)
     .service(services::apis::get_google_access_token)
     .service(
