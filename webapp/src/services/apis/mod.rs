@@ -80,16 +80,14 @@ pub async fn activate(req: HttpRequest, path: web::Path<(String, String)>)->impl
     let jwt = String::from_utf8(BASE64_URL_SAFE_NO_PAD.decode(token).expect("Failed to decode JWT")).expect("Failed to decode JWT to UTF-8");
     let claims = Claims::decode_jwt(&app_data.config.jwt_secret, &jwt);
     if let Ok(..) = claims {
-        let id =  uuid.parse::<i64>();
-        if let Ok(id) = id {
-            let query = sqlx::query!(
-                r#"UPDATE authentication.user_info
-                SET status='active'
-                WHERE id=$1"# ,id)
-                .execute(&app_data.pool).await;
-            if let Ok(..)= query {
-                return HttpResponse::Ok().json(Response::<String>::new(true, Some("Validate New Register success, please login to continue".to_string()), None));
-            }
+        let id = String::from_utf8(BASE64_URL_SAFE_NO_PAD.decode(uuid).expect("Failed to decode uuid")).expect("Failed to decode UUID to UTF-8");
+        let query = sqlx::query!(
+            r#"UPDATE authentication.user_info
+            SET status='active'
+            WHERE id=$1"#, id.parse::<i64>().expect("Failed to parse id string to id"))
+            .execute(&app_data.pool).await;
+        if let Ok(..)= query {
+            return HttpResponse::Ok().json(Response::<String>::new(true, Some("Validate New Register success, please login to continue".to_string()), None));
         }
     }
 
