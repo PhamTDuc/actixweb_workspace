@@ -6,15 +6,18 @@ pub struct UserInfo{
     pub id: i64,
     pub user_name:  String,
     pub email: Option<String>,
-    pub password: Option<String>,
-    pub role: Option<Role>,
-    pub status: Option<Status>
+    pub password: String,
+    pub role: Role,
+    pub status: Status
 }
 
-#[derive(sqlx::FromRow, Serialize)]
-pub struct PermissionRole{
+#[derive(sqlx::FromRow)]
+pub struct UserInfoWithPermission{
+    pub user_name: String,
+    pub email: Option<String>,
+    pub password: String,
     pub role:Role,
-    pub permission: Option<Vec<Permission>>
+    pub permission:Vec<Permission>
 }
  
 #[derive(sqlx::Type, Serialize, Clone)]

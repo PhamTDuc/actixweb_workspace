@@ -41,13 +41,21 @@ impl AuthProvider {
     }
 }
 
+pub static EMPTY_PERMISSION: Vec<String> = vec![];
+pub static OTP_EXPIRATION:i64 = 60;
+
 impl Claims {
+
     pub fn new(username: String, permissions: Vec<String>, expiration_sec : i64) -> Self {
         Self {
             username,
             permissions,
             exp: (Utc::now() + Duration::seconds(expiration_sec)).timestamp(),
         }
+    }
+
+    pub fn new_otp(username: String)->Self{
+        Claims::new(username, EMPTY_PERMISSION.clone(), OTP_EXPIRATION)
     }
 
     pub fn hashing_pasword(secret_key: &str, password: &str)->Result<String, argonautica::Error>{
