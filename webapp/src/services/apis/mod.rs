@@ -51,7 +51,7 @@ if let Ok(user_info_with_permission)= query{
             }
         }
     }
-    return Ok(HttpResponse::Forbidden().json(Response::<String>::new(false, None, Some("Login failed".to_string()))).into());
+    return Ok(HttpResponse::Ok().json(Response::<String>::new(false, None, Some("Login failed".to_string()))).into());
 }
 
 // TODO: Check user_name and email already exists 
