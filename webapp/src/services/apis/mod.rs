@@ -5,8 +5,7 @@ use actix_session::Session;
 use actix_web::{Responder, get, post, web::{self, Data}, HttpRequest, HttpResponse, Error};
 use authentication::claims::Claims;
 use log::{info};
-use serde::Deserialize;
-use crate::{services::{models::{response::{UserInfoWithPermission, UserInfo, Response, LoginResponse}, request::{UserRegister, User}}, google_services}, config::AppData};
+use crate::{services::{models::{response::{UserInfoWithPermission, UserInfo, Response, LoginResponse}, request::{UserRegister, User}}}, config::AppData};
 use actix_web_grants::proc_macro::{ has_permissions};
 use crate::services::models::response::{Role,Status, Permission};
 use base64::prelude::{Engine as _, BASE64_URL_SAFE_NO_PAD};
@@ -26,7 +25,7 @@ pub async fn get_ready_role()->impl Responder{
 
 #[post("/login")]
 pub async fn login(req: HttpRequest, info: web::Json<User>)->Result<impl Responder, Error>{
-    let app_data = req.app_data::<Data<AppData>>().ok_or(ErrorInternalServerError("Failled to get app data"))?;;
+    let app_data = req.app_data::<Data<AppData>>().ok_or(ErrorInternalServerError("Failled to get app data"))?;
     let user = info.into_inner();
     
     let query = sqlx::query_as!(UserInfoWithPermission, r#"

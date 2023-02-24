@@ -1,5 +1,4 @@
-use serde::{Serialize};
-use sqlx::{Type, postgres::{PgHasArrayType, PgTypeInfo, types::Oid}};
+use serde::Serialize;
 
 #[derive(sqlx::FromRow)]
 pub struct UserInfo{

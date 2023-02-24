@@ -1,6 +1,6 @@
 use core::fmt;
 use std::{net::{ToSocketAddrs, SocketAddr, IpAddr, Ipv4Addr}, str::FromStr, vec};
-use actix_web::{web::{self, Data},error::{self, ErrorUnauthorized}, dev::ServiceRequest, Error, http::StatusCode};
+use actix_web::{web::{self, Data},error::{ErrorUnauthorized}, dev::ServiceRequest, Error};
 use actix_web_grants::permissions::AttachPermissions;
 use authentication::claims::{Claims, AuthProvider};
 use serde::Deserialize;
