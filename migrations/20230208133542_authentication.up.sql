@@ -31,3 +31,6 @@ CREATE TABLE "authentication"."permission_role" (
 );
 
 ALTER TABLE "authentication"."user_info" ADD FOREIGN KEY ("role") REFERENCES "authentication"."permission_role" ("role");
+
+INSERT INTO "authentication"."permission_role"("role", "permission") VALUES ('admin', '{"grant_permission","can_view"}');
+INSERT INTO "authentication"."permission_role"("role", "permission") VALUES ('user', '{"can_view"}');
