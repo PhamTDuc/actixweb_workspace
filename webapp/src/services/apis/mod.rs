@@ -6,16 +6,10 @@ use actix_web::{Responder, get, post, web::{self, Data}, HttpRequest, HttpRespon
 use authentication::claims::Claims;
 use log::{info};
 use serde::Deserialize;
-use crate::{services::{models::{response::{UserInfoWithPermission, UserInfo, Response}, request::UserRegister}, google_services}, config::AppData};
+use crate::{services::{models::{response::{UserInfoWithPermission, UserInfo, Response, LoginResponse}, request::{UserRegister, User}}, google_services}, config::AppData};
 use actix_web_grants::proc_macro::{ has_permissions};
 use crate::services::models::response::{Role,Status, Permission};
 use base64::prelude::{Engine as _, BASE64_URL_SAFE_NO_PAD};
-
-#[derive(Deserialize)]
-pub struct User {
-    pub user_name: String,
-    pub password: String,
-}
 
 #[get("/")]
 pub async fn get_ready(session: Session)->impl Responder{
@@ -45,13 +39,15 @@ pub async fn login(req: HttpRequest, info: web::Json<User>)->Result<impl Respond
 if let Ok(user_info_with_permission)= query{     
     if let Ok(valid) = Claims::verify_password(&app_data.config.secret_key, &user.password, &user_info_with_permission.password){
         if valid {
-            let claims = Claims::new(user.user_name, user_info_with_permission.permission.into_iter().map(|e| e.into()).collect(), 1); 
-            let jwt =  app_data.auth_provider.create_jwt(&claims).map_err(|e| ErrorInternalServerError(e))?;
-            return Ok(HttpResponse::Ok().json(Response::<String>::new(true, Some(jwt), None)));
-            }
+                    let claims = Claims::new(user.user_name.clone(), Some(user_info_with_permission.permission.into_iter().map(|permission| permission.into()).collect()), 1); 
+                    let access_token =  app_data.auth_provider.create_jwt(&claims).map_err(|e| ErrorInternalServerError(e))?;
+                    let refesh_token_claims = Claims::new_refresh_token(user.user_name.clone());
+                    let refresh_token = app_data.auth_provider.create_jwt(&refesh_token_claims).map_err(|e|ErrorInternalServerError(e))?;
+                    return Ok(HttpResponse::Ok().json(Response::<LoginResponse>::new(true, Some(LoginResponse { access_token, refresh_token}), None)));
+                }
         }
     }
-    return Ok(HttpResponse::Ok().json(Response::<String>::new(false, None, Some("Login failed".to_string()))).into());
+    return Ok(HttpResponse::Ok().json(Response::<LoginResponse>::new(false, None, Some("Login failed".to_string()))).into());
 }
 
 // TODO: Check user_name and email already exists 

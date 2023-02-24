@@ -73,7 +73,9 @@ pub async fn validator(req: ServiceRequest, cred: BearerAuth)-> Result<ServiceRe
 
     match result {
             Ok(claims) => {
-                req.attach(claims.permissions);
+                if let Some(permission) = claims.permissions{
+                    req.attach(permission);
+                }
                 Ok(req)
             }
             // required by `actix-web-httpauth` validator signature

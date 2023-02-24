@@ -17,7 +17,7 @@ pub struct UserInfoWithPermission{
     pub email: Option<String>,
     pub password: String,
     pub role:Role,
-    pub permission:Vec<Permission>
+    pub permission: Vec<Permission>
 }
  
 #[derive(sqlx::Type, Serialize, Clone)]
@@ -69,8 +69,8 @@ pub struct Response<T> where T:Serialize{
     pub message: Option<String>
 }
 
-impl Response<String>{
-    pub fn new(success: bool, data: Option<String>, message: Option<String>)->Self{
+impl<T:Serialize> Response<T>{
+    pub fn new(success: bool, data: Option<T>, message: Option<String>)->Self{
         Self{success, data , message}
     }
 }
@@ -80,4 +80,10 @@ impl Default for Response<String>{
         Self { success: true, data: Some("Success".to_string()), message: None }
     }
 
+}
+
+#[derive(Serialize)]
+pub struct LoginResponse{
+    pub access_token: String,
+    pub refresh_token: String,
 }

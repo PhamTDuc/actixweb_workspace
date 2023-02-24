@@ -7,7 +7,7 @@ use serde::{Serialize, Deserialize};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
     pub username: String,
-    pub permissions: Vec<String>,
+    pub permissions: Option<Vec<String>>,
     pub exp: i64,
 }
 
@@ -43,10 +43,11 @@ impl AuthProvider {
 
 pub static EMPTY_PERMISSION: Vec<String> = vec![];
 pub static OTP_EXPIRATION:i64 = 60;
+pub static REFRESH_TOKEN_EXPIRATION: i64 = 12*60*60;
 
 impl Claims {
 
-    pub fn new(username: String, permissions: Vec<String>, expiration_sec : i64) -> Self {
+    pub fn new(username: String, permissions: Option<Vec<String>>, expiration_sec : i64) -> Self {
         Self {
             username,
             permissions,
@@ -55,7 +56,11 @@ impl Claims {
     }
 
     pub fn new_otp(username: String)->Self{
-        Claims::new(username, EMPTY_PERMISSION.clone(), OTP_EXPIRATION)
+        Claims::new(username, None, OTP_EXPIRATION)
+    }
+
+    pub fn new_refresh_token(username: String)->Self{
+        Claims::new(username, None, REFRESH_TOKEN_EXPIRATION)
     }
 
     pub fn hashing_pasword(secret_key: &str, password: &str)->Result<String, argonautica::Error>{
