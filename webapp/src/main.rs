@@ -21,11 +21,14 @@ async fn main()->std::io::Result<()>{
         .await
         .expect("Database connection failed");
 
-    let auth_provider = AuthProvider::new(&config.jwt_secret);
+    let redis_client = redis::Client::open(config.redis_url.clone()).unwrap();
+
+    let auth_provider = AuthProvider::new(&config.jwt_secret, config.access_token_expiration, config.refresh_token_expiration);
 
     let app_data = Data::new({
         webapp::config::AppData{
             pool,
+            redis_client: redis_client,
             config: config.clone(),
             auth_provider
         }

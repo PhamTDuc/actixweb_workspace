@@ -1,14 +1,34 @@
 pub mod admin;
 
-use actix_web::error::{ErrorInternalServerError, ErrorBadRequest};
+use std::collections::HashSet;
+
+use actix_web::error::{ErrorInternalServerError, ErrorBadRequest, ErrorForbidden};
 use actix_session::Session;
 use actix_web::{Responder, get, post, web::{self, Data}, HttpRequest, HttpResponse, Error};
-use authentication::claims::Claims;
+use authentication::claims::{Claims, AuthProvider};
 use log::{info};
-use crate::{services::{models::{response::{UserInfoWithPermission, UserInfo, Response, LoginResponse}, request::{UserRegister, User}}}, config::AppData};
+use redis::{Connection, JsonCommands, Commands};
+use crate::{services::{models::{response::{UserInfoWithPermission, UserInfo, Response, LoginResponse}, request::{UserRegister, User, GetAccessTokenRequest}}}, config::AppData};
 use actix_web_grants::proc_macro::{ has_permissions};
 use crate::services::models::response::{Role,Status, Permission};
 use base64::prelude::{Engine as _, BASE64_URL_SAFE_NO_PAD};
+
+fn get_app_data(req:&HttpRequest)->Result<&Data<AppData>, Error>{
+    return req.app_data::<Data<AppData>>().ok_or(ErrorInternalServerError("Failed to get app data"));
+}
+
+fn get_redis_conn(app_data:&Data<AppData>) -> Result<Connection, Error>{
+    return app_data.redis_client.get_connection().map_err(|_|ErrorInternalServerError("Failed to connect to redis"));
+}
+
+fn generate_login_response(user_name:&str, permission: &[Permission], auth_provider: &AuthProvider)->Result<LoginResponse, Error>{
+    let claims = Claims::new(user_name.to_string(), Some(permission.into_iter().map(|permission| permission.to_owned().into()).collect()), auth_provider.access_token_expiration); 
+    let access_token =  auth_provider.create_jwt(&claims).map_err(|e| ErrorInternalServerError(e))?;
+    let refresh_token_claims = Claims::new_token(user_name.to_string(), auth_provider.refresh_token_expiration);
+    let refresh_token = auth_provider.create_jwt(&refresh_token_claims).map_err(|e|ErrorInternalServerError(e))?;
+
+    return Ok(LoginResponse{access_token, refresh_token});
+}
 
 #[get("/")]
 pub async fn get_ready(session: Session)->impl Responder{
@@ -22,10 +42,9 @@ pub async fn get_ready_role()->impl Responder{
     return HttpResponse::Ok().json(Response::<String>::default())
 }
 
-
 #[post("/login")]
 pub async fn login(req: HttpRequest, info: web::Json<User>)->Result<impl Responder, Error>{
-    let app_data = req.app_data::<Data<AppData>>().ok_or(ErrorInternalServerError("Failled to get app data"))?;
+    let app_data = get_app_data(&req)?;
     let user = info.into_inner();
     
     let query = sqlx::query_as!(UserInfoWithPermission, r#"
@@ -38,21 +57,50 @@ pub async fn login(req: HttpRequest, info: web::Json<User>)->Result<impl Respond
 if let Ok(user_info_with_permission)= query{     
     if let Ok(valid) = Claims::verify_password(&app_data.config.secret_key, &user.password, &user_info_with_permission.password){
         if valid {
-                    let claims = Claims::new(user.user_name.clone(), Some(user_info_with_permission.permission.into_iter().map(|permission| permission.into()).collect()), 1); 
-                    let access_token =  app_data.auth_provider.create_jwt(&claims).map_err(|e| ErrorInternalServerError(e))?;
-                    let refesh_token_claims = Claims::new_refresh_token(user.user_name.clone());
-                    let refresh_token = app_data.auth_provider.create_jwt(&refesh_token_claims).map_err(|e|ErrorInternalServerError(e))?;
-                    return Ok(HttpResponse::Ok().json(Response::<LoginResponse>::new(true, Some(LoginResponse { access_token, refresh_token}), None)));
+                    let login_response = generate_login_response(&user.user_name, &user_info_with_permission.permission, &app_data.auth_provider)?;
+                    let mut refresh_tokens = HashSet::new();
+                    let mut redis_conn = get_redis_conn(&app_data)?;
+                    refresh_tokens.insert(login_response.refresh_token.clone());
+                    redis_conn.set(user.user_name, &serde_json::to_string(&refresh_tokens).expect("Failed to convert refresh token to json")).map_err(|e|ErrorInternalServerError(e))?;
+                    return Ok(HttpResponse::Ok().json(Response::<LoginResponse>::new(true, Some(login_response), None)));
                 }
         }
     }
     return Ok(HttpResponse::Ok().json(Response::<LoginResponse>::new(false, None, Some("Login failed".to_string()))).into());
 }
 
-// TODO: Check user_name and email already exists 
+#[get("/get_new_access_token")]
+pub async fn get_new_access_token(req: HttpRequest, info: web::Json<GetAccessTokenRequest>) -> Result<impl Responder, Error>{
+    let app_data = get_app_data(&req)?;
+    let refresh_token =  info.into_inner().refresh_token;
+    let refresh_token_claims = app_data.auth_provider.decode_jwt(&refresh_token)?;
+    let mut redis_conn =get_redis_conn(&app_data)?;
+    let refresh_tokens_json:String = redis_conn.get(&refresh_token_claims.user_name).map_err(|e|ErrorForbidden(e))?;
+    let mut refresh_tokens:HashSet<String> =  serde_json::from_str(&refresh_tokens_json).map_err(|e|ErrorInternalServerError(e))?;
+    let mut redis_conn = get_redis_conn(&app_data)?;
+    if refresh_tokens.contains(&refresh_token){
+        let query = sqlx::query_as!(UserInfoWithPermission, r#"
+        SELECT user_info.user_name, user_info.email, user_info.password, 
+        permission_role.role AS "role: Role", permission_role.permission AS "permission: Vec<Permission>"
+        FROM authentication.user_info INNER JOIN authentication.permission_role 
+        ON user_info.role = permission_role.role WHERE user_info.user_name=$1"#, &refresh_token_claims.user_name)
+        .fetch_one(&app_data.pool).await.map_err(|e|ErrorInternalServerError(e))?;
+
+        let login_response = generate_login_response(&query.user_name, &query.permission, &app_data.auth_provider)?;
+        refresh_tokens.remove(&refresh_token);
+        refresh_tokens.insert(login_response.refresh_token.clone());
+        redis_conn.set(query.user_name, &serde_json::to_string(&refresh_tokens).expect("Failed to convert refresh token to json")).map_err(|e|ErrorInternalServerError(e))?;
+        return Ok(HttpResponse::Ok().json(Response::<LoginResponse>::new(true, Some(login_response), None)));
+    }else{
+        redis_conn.json_del(refresh_token_claims.user_name,"refresh_tokens").map_err(|e|ErrorForbidden(e))?;
+        return Ok(HttpResponse::Forbidden().into());
+    }
+}
+
+
 #[post("/register")]
 pub async fn register(req: HttpRequest, info: web::Json<UserRegister>)->Result<impl Responder, Error>{
-    let app_data = req.app_data::<Data<AppData>>().ok_or(ErrorInternalServerError("Failled to get app data"))?;
+    let app_data = get_app_data(&req)?;
     let user_register = info.into_inner();
     let hashed_password =  Claims::hashing_pasword(&app_data.config.secret_key, &user_register.password).map_err(|e| ErrorInternalServerError(e))?;
     let query =  sqlx::query_as!(UserInfo, r#"
@@ -63,7 +111,7 @@ pub async fn register(req: HttpRequest, info: web::Json<UserRegister>)->Result<i
     .fetch_one(&app_data.pool).await;
 
     if let Ok(user_info) = query{
-        let mut token =  app_data.auth_provider.create_jwt(&Claims::new_otp(user_register.user_name.clone())).map_err(|e|ErrorInternalServerError(e))?;
+        let mut token =  app_data.auth_provider.create_jwt(&Claims::new_token(user_register.user_name.clone(), app_data.config.otp_token_expiration)).map_err(|e|ErrorInternalServerError(e))?;
         let uuid = BASE64_URL_SAFE_NO_PAD.encode(user_info.id.to_string());
         token = BASE64_URL_SAFE_NO_PAD.encode(token);
         let activate_url = format!("/activate/{}/{}", uuid, token); // TODO: Send this redirect Link via Email instead of redirect
@@ -76,7 +124,7 @@ pub async fn register(req: HttpRequest, info: web::Json<UserRegister>)->Result<i
 
 #[get("/activate/{uuid}/{token}")]
 pub async fn activate(req: HttpRequest, path: web::Path<(String, String)>)->Result<impl Responder, Error>{
-    let app_data = req.app_data::<Data<AppData>>().ok_or(ErrorInternalServerError("Failled to get app data"))?;
+    let app_data = get_app_data(&req)?;
     let (uuid, token) = path.into_inner();
     let jwt = String::from_utf8(BASE64_URL_SAFE_NO_PAD.decode(token).map_err(|e| ErrorBadRequest(e))?).map_err(|e| ErrorInternalServerError(e))?;
     let claims = app_data.auth_provider.decode_jwt(&jwt);

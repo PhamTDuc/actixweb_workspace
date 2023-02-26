@@ -6,7 +6,7 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
-    pub username: String,
+    pub user_name: String,
     pub permissions: Option<Vec<String>>,
     pub exp: i64,
 }
@@ -17,16 +17,18 @@ pub struct AuthProvider{
     pub decoding_key: DecodingKey,
     pub header: Header,
     pub validation: Validation,
+    pub access_token_expiration: i64,
+    pub refresh_token_expiration: i64,
 }
 
 impl AuthProvider {
-    pub fn new(jwt_secret: &str)->Self{
+    pub fn new(jwt_secret: &str, access_token_expiration: i64, refresh_token_expiration: i64)->Self{
         let encoding_key = EncodingKey::from_secret(&jwt_secret.as_bytes());
         let decoding_key = DecodingKey::from_secret(&jwt_secret.as_bytes());
         let header = Header::default();
         let validation = Validation::default();
 
-        Self { encoding_key, decoding_key, header, validation}
+        Self { encoding_key, decoding_key, header, validation, access_token_expiration, refresh_token_expiration }
     }
 
     pub fn create_jwt(&self, claims: &Claims)->Result<String, Error>{
@@ -41,26 +43,18 @@ impl AuthProvider {
     }
 }
 
-pub static EMPTY_PERMISSION: Vec<String> = vec![];
-pub static OTP_EXPIRATION:i64 = 60;
-pub static REFRESH_TOKEN_EXPIRATION: i64 = 12*60*60;
-
 impl Claims {
 
-    pub fn new(username: String, permissions: Option<Vec<String>>, expiration_sec : i64) -> Self {
+    pub fn new(user_name: String, permissions: Option<Vec<String>>, expiration_sec : i64) -> Self {
         Self {
-            username,
+            user_name,
             permissions,
             exp: (Utc::now() + Duration::seconds(expiration_sec)).timestamp(),
         }
     }
 
-    pub fn new_otp(username: String)->Self{
-        Claims::new(username, None, OTP_EXPIRATION)
-    }
-
-    pub fn new_refresh_token(username: String)->Self{
-        Claims::new(username, None, REFRESH_TOKEN_EXPIRATION)
+    pub fn new_token(user_name: String, expiration_sec : i64)->Self{
+        Claims::new(user_name, None, expiration_sec)
     }
 
     pub fn hashing_pasword(secret_key: &str, password: &str)->Result<String, argonautica::Error>{

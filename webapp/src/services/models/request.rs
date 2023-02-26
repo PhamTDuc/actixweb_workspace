@@ -12,3 +12,8 @@ pub struct User {
     pub user_name: String,
     pub password: String,
 }
+
+#[derive(Deserialize)]
+pub struct GetAccessTokenRequest{
+    pub refresh_token: String,
+}

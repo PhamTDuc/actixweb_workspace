@@ -3,6 +3,7 @@ use std::{net::{ToSocketAddrs, SocketAddr, IpAddr, Ipv4Addr}, str::FromStr, vec}
 use actix_web::{web::{self, Data},error::{ErrorUnauthorized}, dev::ServiceRequest, Error};
 use actix_web_grants::permissions::AttachPermissions;
 use authentication::claims::{Claims, AuthProvider};
+use redis::Client;
 use serde::Deserialize;
 use config::ConfigError;
 use sqlx::{Postgres, Pool};
@@ -15,9 +16,13 @@ use crate::services;
 pub struct Config{
     pub server: ServerConfig,
     pub database_url:String,
+    pub redis_url:String,
     pub max_db_connection:u32,
     pub n_workers:usize,
     pub jwt_secret:String,
+    pub otp_token_expiration: i64,
+    pub access_token_expiration: i64,
+    pub refresh_token_expiration: i64,
     pub secret_key:String,
     pub cookies_key:String,
 }
@@ -61,6 +66,7 @@ impl Config {
 
 pub struct AppData{
     pub pool: Pool<Postgres>,
+    pub redis_client: Client,
     pub config: Config,
     pub auth_provider:AuthProvider
 }
@@ -94,6 +100,7 @@ pub fn app_config(cfg: &mut web::ServiceConfig){
     .service(services::apis::register)
     .service(services::apis::activate)
     .service(services::apis::login)
+    .service(services::apis::get_new_access_token)
     // .service(services::apis::get_google_access_token)
     .service(
         web::scope("/api")
