@@ -7,7 +7,7 @@ use actix_session::Session;
 use actix_web::{Responder, get, post, web::{self, Data}, HttpRequest, HttpResponse, Error};
 use authentication::claims::{Claims, AuthProvider};
 use log::{info};
-use redis::{Connection, JsonCommands, Commands};
+use redis::{Connection, Commands};
 use crate::{services::{models::{response::{UserInfoWithPermission, UserInfo, Response, LoginResponse}, request::{UserRegister, User, GetAccessTokenRequest}}}, config::AppData};
 use actix_web_grants::proc_macro::{ has_permissions};
 use crate::services::models::response::{Role,Status, Permission};
@@ -92,7 +92,7 @@ pub async fn get_new_access_token(req: HttpRequest, info: web::Json<GetAccessTok
         redis_conn.set(query.user_name, &serde_json::to_string(&refresh_tokens).expect("Failed to convert refresh token to json")).map_err(|e|ErrorInternalServerError(e))?;
         return Ok(HttpResponse::Ok().json(Response::<LoginResponse>::new(true, Some(login_response), None)));
     }else{
-        redis_conn.json_del(refresh_token_claims.user_name,"refresh_tokens").map_err(|e|ErrorForbidden(e))?;
+        redis_conn.del(refresh_token_claims.user_name).map_err(|e|ErrorForbidden(e))?;
         return Ok(HttpResponse::Forbidden().into());
     }
 }
