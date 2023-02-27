@@ -1,5 +1,6 @@
 use core::fmt;
 use std::{net::{ToSocketAddrs, SocketAddr, IpAddr, Ipv4Addr}, str::FromStr, vec};
+use actix_files::Files;
 use actix_web::{web::{self, Data},error::{ErrorUnauthorized}, dev::ServiceRequest, Error};
 use actix_web_grants::permissions::AttachPermissions;
 use authentication::claims::{Claims, AuthProvider};
@@ -102,6 +103,7 @@ pub fn app_config(cfg: &mut web::ServiceConfig){
     .service(services::apis::login)
     .service(services::apis::get_new_access_token)
     // .service(services::apis::get_google_access_token)
+    .service(services::apis::get_file)
     .service(
         web::scope("/api")
         .wrap(auth)

@@ -1,8 +1,9 @@
 pub mod admin;
 
-use std::collections::HashSet;
+use std::{collections::HashSet, path::Path};
 
-use actix_web::error::{ErrorInternalServerError, ErrorBadRequest, ErrorForbidden};
+use actix_files::NamedFile;
+use actix_web::{error::{ErrorInternalServerError, ErrorBadRequest, ErrorForbidden}, http::header::{DispositionType, ContentDisposition}};
 use actix_session::Session;
 use actix_web::{Responder, get, post, web::{self, Data}, HttpRequest, HttpResponse, Error};
 use authentication::claims::{Claims, AuthProvider};
@@ -165,3 +166,15 @@ pub async fn activate(req: HttpRequest, path: web::Path<(String, String)>)->Resu
 
 //     return HttpResponse::InternalServerError().into();
 // }
+
+#[get("/static/{filename:.*}")]
+async fn get_file(req:HttpRequest)->Result<NamedFile, Error>{
+    let path: std::path::PathBuf = req.match_info().query("filename").parse().unwrap();
+    let file = NamedFile::open(Path::new(".").join("static").join(path))?;
+    Ok(file
+        .use_last_modified(true)
+        .set_content_disposition(ContentDisposition {
+            disposition: DispositionType::Attachment,
+            parameters: vec![],
+        }))
+}
