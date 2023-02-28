@@ -1,9 +1,12 @@
 use serde::Deserialize;
+use validator::Validate;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Validate)]
 pub struct UserRegister{
     pub user_name: String,
+    #[validate(email)]
     pub email: String,
+    #[validate(length(min=8))]
     pub password: String,
 }
 

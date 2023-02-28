@@ -9,6 +9,7 @@ use actix_web::{Responder, get, post, web::{self, Data}, HttpRequest, HttpRespon
 use authentication::claims::{Claims, AuthProvider};
 use log::{info};
 use redis::{Connection, Commands};
+use validator::{ValidateArgs, Validate};
 use crate::{services::{models::{response::{UserInfoWithPermission, UserInfo, Response, LoginResponse}, request::{UserRegister, User, GetAccessTokenRequest}}}, config::AppData};
 use actix_web_grants::proc_macro::{ has_permissions};
 use crate::services::models::response::{Role,Status, Permission};
@@ -103,6 +104,11 @@ pub async fn get_new_access_token(req: HttpRequest, info: web::Json<GetAccessTok
 pub async fn register(req: HttpRequest, info: web::Json<UserRegister>)->Result<impl Responder, Error>{
     let app_data = get_app_data(&req)?;
     let user_register = info.into_inner();
+
+    if let Err(err) = user_register.validate(){
+        return Ok(HttpResponse::Ok().json(Response::<String>::new(false, None, Some(err.to_string()))));
+    }
+
     let hashed_password =  Claims::hashing_pasword(&app_data.config.secret_key, &user_register.password).map_err(|e| ErrorInternalServerError(e))?;
     let query =  sqlx::query_as!(UserInfo, r#"
         INSERT INTO authentication.user_info (user_name, email, password, role, status)

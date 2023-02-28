@@ -28,5 +28,6 @@ openssl = { version = "^0.10" }
 base64 = "^0.21.0"
 derive_more = "^0.99.17"
 redis = {version="^0.22.3"}
+validator = { version = "^0.16.0", features = ["derive"] }
 
 authentication={path="../authentication"}
