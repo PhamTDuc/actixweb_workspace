@@ -1,4 +1,4 @@
-pub mod admin;
+pub mod game_admin;
 
 use std::{collections::HashSet, path::Path};
 
@@ -9,10 +9,10 @@ use actix_web::{Responder, get, post, web::{self, Data}, HttpRequest, HttpRespon
 use authentication::claims::{Claims, AuthProvider};
 use log::{info};
 use redis::{Connection, Commands};
-use validator::{ValidateArgs, Validate};
+use validator::{Validate};
 use crate::{services::{models::{response::{UserInfoWithPermission, UserInfo, Response, LoginResponse}, request::{UserRegister, User, GetAccessTokenRequest}}}, config::AppData};
 use actix_web_grants::proc_macro::{ has_permissions};
-use crate::services::models::response::{Role,Status, Permission};
+use crate::services::models::response::{Status, Permission};
 use base64::prelude::{Engine as _, BASE64_URL_SAFE_NO_PAD};
 
 fn get_app_data(req:&HttpRequest)->Result<&Data<AppData>, Error>{
@@ -51,9 +51,9 @@ pub async fn login(req: HttpRequest, info: web::Json<User>)->Result<impl Respond
     
     let query = sqlx::query_as!(UserInfoWithPermission, r#"
     SELECT user_info.user_name, user_info.email, user_info.password, 
-    permission_role.role AS "role: Role", permission_role.permission AS "permission: Vec<Permission>"
+    permission_role.id AS role , permission_role.permission AS "permission: Vec<Permission>"
     FROM authentication.user_info INNER JOIN authentication.permission_role 
-    ON user_info.role = permission_role.role WHERE user_info.user_name=$1"#, &user.user_name)
+    ON user_info.role = permission_role.id WHERE user_info.user_name=$1"#, &user.user_name)
     .fetch_one(&app_data.pool).await;
 
 if let Ok(user_info_with_permission)= query{     
@@ -64,7 +64,7 @@ if let Ok(user_info_with_permission)= query{
                     let mut redis_conn = get_redis_conn(&app_data)?;
                     refresh_tokens.insert(login_response.refresh_token.clone());
                     redis_conn.set(user.user_name, &serde_json::to_string(&refresh_tokens).expect("Failed to convert refresh token to json")).map_err(|e|ErrorInternalServerError(e))?;
-                    return Ok(HttpResponse::Ok().json(Response::<LoginResponse>::new(true, Some(login_response), None)));
+                    return Ok(HttpResponse::Ok().json(Response::new(true, Some(login_response), None)));
                 }
         }
     }
@@ -82,17 +82,17 @@ pub async fn get_new_access_token(req: HttpRequest, info: web::Json<GetAccessTok
     let mut redis_conn = get_redis_conn(&app_data)?;
     if refresh_tokens.contains(&refresh_token){
         let query = sqlx::query_as!(UserInfoWithPermission, r#"
-        SELECT user_info.user_name, user_info.email, user_info.password, 
-        permission_role.role AS "role: Role", permission_role.permission AS "permission: Vec<Permission>"
+        SELECT user_info.user_name, user_info.email, user_info.password,
+        permission_role.id AS role , permission_role.permission AS "permission: Vec<Permission>"
         FROM authentication.user_info INNER JOIN authentication.permission_role 
-        ON user_info.role = permission_role.role WHERE user_info.user_name=$1"#, &refresh_token_claims.user_name)
+        ON user_info.role = permission_role.id WHERE user_info.user_name=$1"#, &refresh_token_claims.user_name)
         .fetch_one(&app_data.pool).await.map_err(|e|ErrorInternalServerError(e))?;
 
         let login_response = generate_login_response(&query.user_name, &query.permission, &app_data.auth_provider)?;
         refresh_tokens.remove(&refresh_token);
         refresh_tokens.insert(login_response.refresh_token.clone());
         redis_conn.set(query.user_name, &serde_json::to_string(&refresh_tokens).expect("Failed to convert refresh token to json")).map_err(|e|ErrorInternalServerError(e))?;
-        return Ok(HttpResponse::Ok().json(Response::<LoginResponse>::new(true, Some(login_response), None)));
+        return Ok(HttpResponse::Ok().json(Response::new(true, Some(login_response), None)));
     }else{
         redis_conn.del(refresh_token_claims.user_name).map_err(|e|ErrorForbidden(e))?;
         return Ok(HttpResponse::Forbidden().into());
@@ -112,8 +112,8 @@ pub async fn register(req: HttpRequest, info: web::Json<UserRegister>)->Result<i
     let hashed_password =  Claims::hashing_pasword(&app_data.config.secret_key, &user_register.password).map_err(|e| ErrorInternalServerError(e))?;
     let query =  sqlx::query_as!(UserInfo, r#"
         INSERT INTO authentication.user_info (user_name, email, password, role, status)
-        VALUES ($1, $2, $3, 'user', 'deactivate') 
-        RETURNING id, user_name, email, password, role AS "role: Role", status AS "status: Status""#, 
+        VALUES ($1, $2, $3, 0 , 'deactivate') 
+        RETURNING id, user_name, email, password, role, status AS "status: Status""#, 
     &user_register.user_name, &user_register.email, &hashed_password)
     .fetch_one(&app_data.pool).await;
 
@@ -123,7 +123,7 @@ pub async fn register(req: HttpRequest, info: web::Json<UserRegister>)->Result<i
         token = BASE64_URL_SAFE_NO_PAD.encode(token);
         let activate_url = format!("/activate/{}/{}", uuid, token); // TODO: Send this redirect Link via Email instead of redirect
         info!("Activate Link URL: {}", activate_url);
-        return  Ok(HttpResponse::Ok().json(Response::<String>::new(true, Some("Register success, please check your email for confirmation".to_string()), None)));
+        return  Ok(HttpResponse::Ok().json(Response::new(true, Some("Register success, please check your email for confirmation".to_string()), None)));
     }
 
     return Ok(HttpResponse::Ok().json(Response::<String>::new(false, None, Some("Register failed, user name already exists, please try again".to_string()))));
@@ -143,7 +143,7 @@ pub async fn activate(req: HttpRequest, path: web::Path<(String, String)>)->Resu
             WHERE id=$1 AND status='deactivate'"#, id.parse::<i64>().map_err(|e| ErrorBadRequest(e))?)
             .execute(&app_data.pool).await;
         if query.is_ok() {
-            return Ok(HttpResponse::Ok().json(Response::<String>::new(true, Some("Validate New Register success, please login to continue".to_string()), None)));
+            return Ok(HttpResponse::Ok().json(Response::new(true, Some("Validate New Register success, please login to continue".to_string()), None)));
         }
     }
 

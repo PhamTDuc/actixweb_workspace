@@ -35,5 +35,5 @@ regex = "^1.7.1"
 authentication={path="../authentication"}
 
 [features]
-default = []
+default = ["use_https"]
 use_https = []

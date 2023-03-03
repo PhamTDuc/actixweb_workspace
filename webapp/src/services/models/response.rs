@@ -4,18 +4,18 @@ use serde::Serialize;
 pub struct UserInfo{
     pub id: i64,
     pub user_name:  String,
-    pub email: Option<String>,
+    pub email: String,
     pub password: String,
-    pub role: Role,
+    pub role: i32,
     pub status: Status
 }
 
 #[derive(sqlx::FromRow)]
 pub struct UserInfoWithPermission{
     pub user_name: String,
-    pub email: Option<String>,
+    pub email: String,
     pub password: String,
-    pub role:Role,
+    pub role:i32,
     pub permission: Vec<Permission>
 }
  
