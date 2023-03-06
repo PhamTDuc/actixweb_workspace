@@ -1,6 +1,5 @@
 use core::fmt;
 use std::{net::{ToSocketAddrs, SocketAddr, IpAddr, Ipv4Addr}, str::FromStr, vec};
-use actix_files::Files;
 use actix_web::{web::{self, Data},error::{ErrorUnauthorized}, dev::ServiceRequest, Error};
 use actix_web_grants::permissions::AttachPermissions;
 use authentication::claims::{Claims, AuthProvider};
@@ -117,5 +116,6 @@ pub fn app_config(cfg: &mut web::ServiceConfig){
 
 pub fn admin_config(cfg: &mut web::ServiceConfig){
     cfg.service(services::apis::get_ready_role);
+    cfg.service(services::apis::game_admin::add_platform);
 }
 

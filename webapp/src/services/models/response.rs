@@ -1,4 +1,5 @@
 use serde::Serialize;
+use strum_macros::AsRefStr;
 
 #[derive(sqlx::FromRow)]
 pub struct UserInfo{
@@ -36,24 +37,38 @@ pub enum Status{
     Blocked
 }
 
-
+// TODO: Using scrumt_macros crate
 #[derive(sqlx::Type, Serialize, Clone)]
 #[sqlx(type_name="permission")]
 #[sqlx(rename_all="snake_case")]
+#[derive(AsRefStr)]
 pub enum Permission{
-
+    #[strum(serialize="grant_permission")]
     GrantPermission,
-    CanView
+    #[strum(serialize="can_view")]
+    CanView,
+    #[strum(serialize="add_game")]
+    AddGame,
+    #[strum(serialize="add_platform")]
+    AddPlatform,
+    #[strum(serialize="add_game_version")]
+    AddGameVersion,
+    #[strum(serialize="add_dlc")]
+    AddDLC
 }
 
-impl From<Permission> for String{
-    fn from(value: Permission) -> Self {
-        match value {
-            Permission::CanView=> "can_view".to_owned(),
-            Permission::GrantPermission => "grant_permission".to_owned(),
-        }
-    }
-}
+// impl From<Permission> for String{
+//     fn from(value: Permission) -> Self {
+//         match value {
+//             Permission::CanView=> "can_view".to_owned(),
+//             Permission::GrantPermission => "grant_permission".to_owned(),
+//             Permission::AddGame => "add_game".to_owned(),
+//             Permission::AddPlatform => "add_platform".to_owned(),
+//             Permission::AddGameVersion => "add_game_version".to_owned(),
+//             Permission::AddDLC => "add_dlc".to_owned(),
+//         }
+//     }
+// }
 
 // impl PgHasArrayType for Permission{
 //     fn array_type_info() -> sqlx::postgres::PgTypeInfo {

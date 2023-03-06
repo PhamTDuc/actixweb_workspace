@@ -24,7 +24,7 @@ fn get_redis_conn(app_data:&Data<AppData>) -> Result<Connection, Error>{
 }
 
 fn generate_login_response(user_name:&str, permission: &[Permission], auth_provider: &AuthProvider)->Result<LoginResponse, Error>{
-    let claims = Claims::new(user_name.to_string(), Some(permission.into_iter().map(|permission| permission.to_owned().into()).collect()), auth_provider.access_token_expiration); 
+    let claims = Claims::new(user_name.to_string(), Some(permission.into_iter().map(|permission| permission.as_ref().to_owned()).collect()), auth_provider.access_token_expiration); 
     let access_token =  auth_provider.create_jwt(&claims).map_err(|e| ErrorInternalServerError(e))?;
     let refresh_token_claims = Claims::new_token(user_name.to_string(), auth_provider.refresh_token_expiration);
     let refresh_token = auth_provider.create_jwt(&refresh_token_claims).map_err(|e|ErrorInternalServerError(e))?;
@@ -49,14 +49,13 @@ pub async fn login(req: HttpRequest, info: web::Json<User>)->Result<impl Respond
     let app_data = get_app_data(&req)?;
     let user = info.into_inner();
     
-    let query = sqlx::query_as!(UserInfoWithPermission, r#"
+    let user_info_with_permission = sqlx::query_as!(UserInfoWithPermission, r#"
     SELECT user_info.user_name, user_info.email, user_info.password, 
     permission_role.id AS role , permission_role.permission AS "permission: Vec<Permission>"
     FROM authentication.user_info INNER JOIN authentication.permission_role 
     ON user_info.role = permission_role.id WHERE user_info.user_name=$1"#, &user.user_name)
-    .fetch_one(&app_data.pool).await;
+    .fetch_one(&app_data.pool).await.map_err(|e|ErrorBadRequest(e))?;
 
-if let Ok(user_info_with_permission)= query{     
     if let Ok(valid) = Claims::verify_password(&app_data.config.secret_key, &user.password, &user_info_with_permission.password){
         if valid {
                     let login_response = generate_login_response(&user.user_name, &user_info_with_permission.permission, &app_data.auth_provider)?;
@@ -67,7 +66,6 @@ if let Ok(user_info_with_permission)= query{
                     return Ok(HttpResponse::Ok().json(Response::new(true, Some(login_response), None)));
                 }
         }
-    }
     return Ok(HttpResponse::Ok().json(Response::<LoginResponse>::new(false, None, Some("Login failed".to_string()))).into());
 }
 
@@ -110,23 +108,19 @@ pub async fn register(req: HttpRequest, info: web::Json<UserRegister>)->Result<i
     }
 
     let hashed_password =  Claims::hashing_pasword(&app_data.config.secret_key, &user_register.password).map_err(|e| ErrorInternalServerError(e))?;
-    let query =  sqlx::query_as!(UserInfo, r#"
+    let user_info =  sqlx::query_as!(UserInfo, r#"
         INSERT INTO authentication.user_info (user_name, email, password, role, status)
-        VALUES ($1, $2, $3, 0 , 'deactivate') 
+        VALUES ($1, $2, $3, 1 , 'deactivate') 
         RETURNING id, user_name, email, password, role, status AS "status: Status""#, 
     &user_register.user_name, &user_register.email, &hashed_password)
-    .fetch_one(&app_data.pool).await;
+    .fetch_one(&app_data.pool).await.map_err(|e|ErrorBadRequest(e))?;
 
-    if let Ok(user_info) = query{
-        let mut token =  app_data.auth_provider.create_jwt(&Claims::new_token(user_register.user_name.clone(), app_data.config.otp_token_expiration)).map_err(|e|ErrorInternalServerError(e))?;
-        let uuid = BASE64_URL_SAFE_NO_PAD.encode(user_info.id.to_string());
-        token = BASE64_URL_SAFE_NO_PAD.encode(token);
-        let activate_url = format!("/activate/{}/{}", uuid, token); // TODO: Send this redirect Link via Email instead of redirect
-        info!("Activate Link URL: {}", activate_url);
-        return  Ok(HttpResponse::Ok().json(Response::new(true, Some("Register success, please check your email for confirmation".to_string()), None)));
-    }
-
-    return Ok(HttpResponse::Ok().json(Response::<String>::new(false, None, Some("Register failed, user name already exists, please try again".to_string()))));
+    let mut token =  app_data.auth_provider.create_jwt(&Claims::new_token(user_register.user_name.clone(), app_data.config.otp_token_expiration)).map_err(|e|ErrorInternalServerError(e))?;
+    let uuid = BASE64_URL_SAFE_NO_PAD.encode(user_info.id.to_string());
+    token = BASE64_URL_SAFE_NO_PAD.encode(token);
+    let activate_url = format!("/activate/{}/{}", uuid, token); // TODO: Send this redirect Link via Email instead of redirect
+    info!("Activate Link URL: {}", activate_url);
+    return  Ok(HttpResponse::Ok().json(Response::new(true, Some("Register success, please check your email for confirmation".to_string()), None)));
 }
 
 #[get("/activate/{uuid}/{token}")]
