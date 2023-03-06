@@ -16,14 +16,14 @@ dotenvy = "^0.15"
 config ="^0.13.3"
 utoipa = { version = "2", features = ["actix_extras"] }
 utoipa-swagger-ui = { version = "2", features = ["actix-web"] }
-sqlx = { version = "0.6", features = [ "runtime-actix-native-tls" , "postgres", "macros" ] }
+sqlx = { version = "0.6", features = [ "runtime-actix-native-tls" , "postgres", "macros","chrono" ] }
 clap = {version="^4.1.1", features=["derive"]}
 actix-web-httpauth = "^0.8.0"
 actix-web-grants = "^3.0.1"
 jsonwebtoken = {version="^8", features = ["use_pem"]}
 actix-session = {version="^0.7.2", features= ["cookie-session"]}
 actix-cors = "^0.6.4"
-chrono = {version="^0.4.23", features=["serde"]}
+chrono = {version="^0.4.23", features=["serde", "clock"]}
 openssl = { version = "^0.10" }
 base64 = "^0.21.0"
 derive_more = "^0.99.17"

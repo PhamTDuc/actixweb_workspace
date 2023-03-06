@@ -117,5 +117,6 @@ pub fn app_config(cfg: &mut web::ServiceConfig){
 pub fn admin_config(cfg: &mut web::ServiceConfig){
     cfg.service(services::apis::get_ready_role);
     cfg.service(services::apis::game_admin::add_platform);
+    cfg.service(services::apis::game_admin::add_game);
 }
 
